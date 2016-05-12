@@ -74,7 +74,10 @@ class XYHistPlot(QtWidgets.QSplitter):
         hists = _histogram_counts(counts, histogram_bins)
         self.xy_plot_data = self.xy_plot.plot(x=x, y=y,
                                               pen=None,
-                                              symbol="x", symbolSize=20)
+                                              symbol="x")
+        #self.xy_plot_data.disableAutoRange(axis=pyqtgraph.ViewBox.XAxis)
+        self.xy_plot.setYRange(0,1)
+        self.xy_plot.showGrid(x=True,y=True)       
         self.xy_plot_data.sigPointsClicked.connect(self._point_clicked)
         for index, (point, counts, hist) in (
                 enumerate(zip(self.xy_plot_data.scatter.points(),
@@ -86,7 +89,10 @@ class XYHistPlot(QtWidgets.QSplitter):
         self.hist_plot_data = self.hist_plot.plot(
             stepMode=True, fillLevel=0,
             brush=(0, 0, 255, 150))
+        self.hist_plot.addLine(x=threshold)
         self.counts_plot_data = self.counts_plot.plot(pen=None, symbol="x")
+        self.counts_plot.addLine(y=threshold)
+        self._point_clicked(None, [self.xy_plot_data.scatter.points()[-1]])
 
     def _point_clicked(self, data_item, spot_items):
         spot_item = spot_items[0]
@@ -106,6 +112,22 @@ class XYHistPlot(QtWidgets.QSplitter):
         self.counts_plot_data.setData(x=[i for i in range(len(spot_item.counts))],
                                     y=spot_item.counts)
 
+    def keyPressEvent(self, event):
+        if self.selected_index is None:
+            return
+        if event.key() == Qt.Key_Left:
+            if self.selected_index == 0:
+                return
+            ind = self.selected_index-1
+        elif event.key() == Qt.Key_Right:
+            if self.selected_index == len(self.xy_plot_data.scatter.points())-1:
+                return
+            ind = self.selected_index+1
+        else:
+            return
+        self._point_clicked(None, [self.xy_plot_data.scatter.points()[ind]])
+
+
     def data_changed(self, data, mods):
         try:
             counts = data[self.args.counts][1]
@@ -116,7 +138,7 @@ class XYHistPlot(QtWidgets.QSplitter):
             if self.args.histogram_bins is not None:
                 histogram_bins = data[self.args.histogram_bins][1]
             else:
-                histogram_bins = [i for i in range(200)]
+                histogram_bins = [i for i in range(300)]
             if self.args.threshold is not None:
                 threshold = int(self.args.threshold) #data[self.args.threshold][1]
             else:
