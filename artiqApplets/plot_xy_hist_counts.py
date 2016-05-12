@@ -4,30 +4,27 @@ import numpy as np
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 import pyqtgraph
+from scipy.stats import binom
 
 from artiq.applets.simple import SimpleApplet
 
 
-def _compute_ys(histogram_bins, histograms_counts):
-        bin_centers = np.empty(len(histogram_bins)-1)
-        for i in range(len(bin_centers)):
-            bin_centers[i] = (histogram_bins[i] + histogram_bins[i+1])/2
-        ys = np.empty(histograms_counts.shape[0])
-        for n, counts in enumerate(histograms_counts):
-            ys[n] = sum(counts)/len(counts)
-        return ys
-
 def _threshold_counts(counts, threshold):
     y = []
+    y_upper_err = []
+    y_lower_err = []
     for countVec in counts:
         p = sum([x >= threshold for x in countVec]) / len(countVec)
         y.append(p)
-    return y
+        kci = binom.interval(0.68, len(countVec), p) 
+        y_lower_err.append( p - kci[0]/len(countVec) )
+        y_upper_err.append( kci[1]/len(countVec) - p )
+    return y, y_upper_err, y_lower_err
 
-def _histogram_counts(counts, histogram_bins):
+def _histogram_counts(counts, bins):
     hists = []
     for countVec in counts:
-        hist, bins = np.histogram(countVec, bins=histogram_bins)
+        hist, bins = np.histogram(countVec, bins=bins)
         hists.append(hist)
     return hists
 
@@ -36,7 +33,10 @@ class XYHistPlot(QtWidgets.QSplitter):
     def __init__(self, args):
         QtWidgets.QSplitter.__init__(self)
         self.resize(1000,600)
-        self.setWindowTitle("XY/Histogram")
+        self.setWindowTitle("XY/Histogram/Counts")
+
+        self.max_hist = args.max_hist
+        self.bins = [i for i in range(args.max_hist)]
 
         self.xy_plot = pyqtgraph.PlotWidget()
         self.insertWidget(0, self.xy_plot)
@@ -58,26 +58,26 @@ class XYHistPlot(QtWidgets.QSplitter):
 
         self.args = args
 
-    def _set_full_data(self, x, counts, histogram_bins, threshold):
+    def _set_full_data(self, x, counts, threshold):
         self.xy_plot.clear()
         self.hist_plot.clear()
         self.counts_plot.clear()
         self.xy_plot_data = None
         self.counts_plot_data = None
         self.hist_plot_data = None
-        self.arrow = None
+        self.indicator = None
         self.selected_index = None
 
-        self.histogram_bins = histogram_bins
-
-        y = _threshold_counts(counts, threshold)
-        hists = _histogram_counts(counts, histogram_bins)
+        y, y_upper_err, y_lower_err = _threshold_counts(counts, threshold)
+        hists = _histogram_counts(counts, self.bins)
         self.xy_plot_data = self.xy_plot.plot(x=x, y=y,
                                               pen=None,
                                               symbol="x")
-        #self.xy_plot_data.disableAutoRange(axis=pyqtgraph.ViewBox.XAxis)
+        errbars = pyqtgraph.ErrorBarItem(
+                x=np.array(x), y=np.array(y), top=np.array(y_upper_err), bottom=np.array(y_lower_err))
+        self.xy_plot.addItem(errbars)
         self.xy_plot.setYRange(0,1)
-        self.xy_plot.showGrid(x=True,y=True)       
+        self.xy_plot.showGrid(x=True,y=True)
         self.xy_plot_data.sigPointsClicked.connect(self._point_clicked)
         for index, (point, counts, hist) in (
                 enumerate(zip(self.xy_plot_data.scatter.points(),
@@ -90,24 +90,25 @@ class XYHistPlot(QtWidgets.QSplitter):
             stepMode=True, fillLevel=0,
             brush=(0, 0, 255, 150))
         self.hist_plot.addLine(x=threshold)
+        self.hist_plot.setXRange(0,self.max_hist)
+
         self.counts_plot_data = self.counts_plot.plot(pen=None, symbol="x")
         self.counts_plot.addLine(y=threshold)
+        self.counts_plot.setYRange(0,self.max_hist)
         self._point_clicked(None, [self.xy_plot_data.scatter.points()[-1]])
 
     def _point_clicked(self, data_item, spot_items):
         spot_item = spot_items[0]
         position = spot_item.pos()
-        if self.arrow is None:
-            self.arrow = pyqtgraph.ArrowItem(
-                angle=-120, tipAngle=30, baseAngle=20, headLen=40,
-                tailLen=40, tailWidth=8, pen=None, brush="y")
-            self.arrow.setPos(position)
-            # NB: temporary glitch if addItem is done before setPos
-            self.xy_plot.addItem(self.arrow)
+        if self.indicator is None:
+            self.indicator = pyqtgraph.ScatterPlotItem(symbol="o", brush=None, size=10, 
+                pen=pyqtgraph.mkPen('y', width=2), pos=[position])
+            self.xy_plot.addItem(self.indicator)
         else:
-            self.arrow.setPos(position)
+            self.indicator.clear()
+            self.indicator.setData(pos=[position])
         self.selected_index = spot_item.histogram_index
-        self.hist_plot_data.setData(x=self.histogram_bins,
+        self.hist_plot_data.setData(x=self.bins,
                                     y=spot_item.hist)
         self.counts_plot_data.setData(x=[i for i in range(len(spot_item.counts))],
                                     y=spot_item.counts)
@@ -135,27 +136,25 @@ class XYHistPlot(QtWidgets.QSplitter):
                 x = data[self.args.x][1]
             else:
                 x = [i for i in range(len(counts))]
-            if self.args.histogram_bins is not None:
-                histogram_bins = data[self.args.histogram_bins][1]
-            else:
-                histogram_bins = [i for i in range(300)]
             if self.args.threshold is not None:
-                threshold = int(self.args.threshold) #data[self.args.threshold][1]
+                threshold = data[self.args.threshold][1]
             else:
                 threshold = data["singleIon.threshold"][1]
         except KeyError:
             return
-        self._set_full_data(x, counts, histogram_bins, threshold)
+        self._set_full_data(x, counts, threshold)
+
 
 
 def main():
     applet = SimpleApplet(XYHistPlot)
     applet.add_dataset("x", "1D array of point abscissas", required=False)
     applet.add_dataset("counts",
-                       "2D array of counts, for each point")
-    applet.add_dataset("histogram_bins",
-                       "1D array of histogram bin boundaries", required=False)
+                       "2D array of counts, a vector for each point")
     applet.add_dataset("threshold", "threshold for counts", required=False)
+    applet.argparser.add_argument("--max_hist", default=250, type=int,
+            help="maximum count for histogram")
+
     applet.run()
 
 if __name__ == "__main__":
