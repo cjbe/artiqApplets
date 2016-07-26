@@ -136,10 +136,8 @@ class XYHistPlot(QtWidgets.QSplitter):
                 x = data[self.args.x][1]
             else:
                 x = [i for i in range(len(counts))]
-            if self.args.threshold is not None:
-                threshold = data[self.args.threshold][1]
-            else:
-                threshold = data["singleIon.threshold"][1]
+            
+            threshold = data[self.args.threshold][1]
         except KeyError:
             return
         self._set_full_data(x, counts, threshold)
@@ -151,7 +149,7 @@ def main():
     applet.add_dataset("x", "1D array of point abscissas", required=False)
     applet.add_dataset("counts",
                        "2D array of counts, a vector for each point")
-    applet.add_dataset("threshold", "threshold for counts", required=False)
+    applet.add_dataset("threshold", "threshold for counts", required=True)
     applet.argparser.add_argument("--max_hist", default=250, type=int,
             help="maximum count for histogram")
 
