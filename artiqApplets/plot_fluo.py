@@ -27,6 +27,7 @@ class XYPlot(pyqtgraph.PlotWidget):
 def main():
     applet = SimpleApplet(XYPlot)
     applet.add_dataset("y", "Y values")
+    applet.add_dataset("x", "1D array of point abscissas", required=False)
     applet.run()
 
 if __name__ == "__main__":
