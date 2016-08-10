@@ -9,16 +9,17 @@ from scipy.stats import binom
 from artiq.applets.simple import SimpleApplet
 
 
-def _threshold_counts(counts, threshold):
+def _threshold_counts(counts, threshold, n_vec):
     y = []
     y_upper_err = []
     y_lower_err = []
-    for countVec in counts:
-        p = sum([x >= threshold for x in countVec]) / len(countVec)
+    for countVec, N in zip(counts, n_vec):
+        countVec = countVec[0:int(N)]
+        p = sum([x >= threshold for x in countVec]) / N
         y.append(p)
-        kci = binom.interval(0.68, len(countVec), p) 
-        y_lower_err.append( p - kci[0]/len(countVec) )
-        y_upper_err.append( kci[1]/len(countVec) - p )
+        kci = binom.interval(0.68, N, p) 
+        y_lower_err.append( p - kci[0]/N )
+        y_upper_err.append( kci[1]/N - p )
     return y, y_upper_err, y_lower_err
 
 def _histogram_counts(counts, bins):
@@ -33,7 +34,7 @@ class XYHistPlot(QtWidgets.QSplitter):
     def __init__(self, args):
         QtWidgets.QSplitter.__init__(self)
         self.resize(1000,600)
-        self.setWindowTitle("XY/Histogram/Counts")
+        self.setWindowTitle("XY/Histogram")
 
         self.max_hist = args.max_hist
         self.bins = [i for i in range(args.max_hist)]
@@ -54,11 +55,11 @@ class XYHistPlot(QtWidgets.QSplitter):
         self.counts_plot = pyqtgraph.PlotWidget()
         self.counts_plot_data = None
 
-        split2.insertWidget(1, self.counts_plot)
-
+        split2.insertWidget(1, self.counts_plot)  
+        
         self.args = args
 
-    def _set_full_data(self, x, counts, threshold):
+    def _set_full_data(self, x, counts, threshold, n_vec):
         self.xy_plot.clear()
         self.hist_plot.clear()
         self.counts_plot.clear()
@@ -68,7 +69,7 @@ class XYHistPlot(QtWidgets.QSplitter):
         self.indicator = None
         self.selected_index = None
 
-        y, y_upper_err, y_lower_err = _threshold_counts(counts, threshold)
+        y, y_upper_err, y_lower_err = _threshold_counts(counts, threshold, n_vec)
         hists = _histogram_counts(counts, self.bins)
         self.xy_plot_data = self.xy_plot.plot(x=x, y=y,
                                               pen=None,
@@ -132,26 +133,30 @@ class XYHistPlot(QtWidgets.QSplitter):
     def data_changed(self, data, mods):
         try:
             counts = data[self.args.counts][1]
+            n_vec = data[self.args.Nvec][1]
+            print(counts)
+            #print(n_vec)
             if self.args.x is not None:
                 x = data[self.args.x][1]
             else:
                 x = [i for i in range(len(counts))]
-            
             threshold = data[self.args.threshold][1]
+            #print(threshold)
         except KeyError:
             return
-        self._set_full_data(x, counts, threshold)
+        self._set_full_data(x, counts, threshold, n_vec)
 
 
 
 def main():
     applet = SimpleApplet(XYHistPlot)
     applet.add_dataset("x", "1D array of point abscissas", required=False)
-    applet.add_dataset("counts",
-                       "2D array of counts, a vector for each point")
+    applet.add_dataset("counts", "counts vector", required=True)
+    applet.add_dataset("Nvec", "shots per scan point", required=True)
     applet.add_dataset("threshold", "threshold for counts", required=True)
     applet.argparser.add_argument("--max_hist", default=250, type=int,
             help="maximum count for histogram")
+
 
     applet.run()
 
