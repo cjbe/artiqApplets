@@ -134,7 +134,7 @@ class XYHistPlot(QtWidgets.QSplitter):
         try:
             counts = data[self.args.counts][1]
             n_vec = data[self.args.Nvec][1]
-            print(counts)
+            #print(counts)
             #print(n_vec)
             if self.args.x is not None:
                 x = data[self.args.x][1]
@@ -144,6 +144,10 @@ class XYHistPlot(QtWidgets.QSplitter):
             #print(threshold)
         except KeyError:
             return
+        
+        if len(counts) != len(x) or len(counts) != len(n_vec):
+            return
+        
         self._set_full_data(x, counts, threshold, n_vec)
 
 
