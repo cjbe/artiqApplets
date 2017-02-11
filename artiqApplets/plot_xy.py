@@ -14,27 +14,28 @@ class XYPlot(pyqtgraph.PlotWidget):
         self.args = args
 
     def data_changed(self, data, mods, title):
-        try:
-            y = data[self.args.y][1]
-        except KeyError:
+        def get_array_or_none(key):
+            try:
+                return np.array(data[key][1])
+            except KeyError:
+                return None
+
+        y = get_array_or_none(self.args.y)
+        if y is None:
             return
-        x = np.array(data.get(self.args.x, (False, None))[1])
+        x = get_array_or_none(self.args.x)
         if x is None:
             x = np.arange(len(y))
-        error = data.get(self.args.error, (False, None))[1]
-        fit = data.get(self.args.fit, (False, None))[1]
+        error = get_array_or_none(self.args.error)
+        fit = get_array_or_none(self.args.fit)
 
-        if not len(y) or len(y) != len(x):
+        if len(y) != len(x):
             return
+
         if error is not None and hasattr(error, "__len__"):
             if not len(error):
                 error = None
             elif len(error) != len(y):
-                return
-        if fit is not None:
-            if not len(fit):
-                fit = None
-            elif len(fit) != len(y):
                 return
 
         xi = np.argsort(x)
@@ -45,6 +46,7 @@ class XYPlot(pyqtgraph.PlotWidget):
         self.clear()
         symbol = "x" if not self.args.no_symbol else None
         pen = pyqtgraph.mkPen() if self.args.lines else None
+
         self.plot(x[xi], y[xi], pen=pen, symbol=symbol)
         self.setTitle(title)
         if error is not None:
@@ -54,7 +56,7 @@ class XYPlot(pyqtgraph.PlotWidget):
             errbars = pyqtgraph.ErrorBarItem(
                 x=np.array(x), y=np.array(y), height=error)
             self.addItem(errbars)
-        if fit is not None:
+        if fit is not None and len(x) == len(fit):
             self.plot(x[xi], fit[xi], pen=pyqtgraph.mkPen('g'))
 
         if self.args.xlabel:
