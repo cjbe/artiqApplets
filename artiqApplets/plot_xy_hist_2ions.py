@@ -88,7 +88,7 @@ class XYHistPlot2Ions(QtWidgets.QSplitter):
         y11, y11_upper_err, y11_lower_err, y00, y00_upper_err, y00_lower_err, y10_01, y10_01_upper_err, y10_01_lower_err = _threshold_counts(counts, thresholdLow, thresholdHigh, n_vec)
         hists = _histogram_counts(counts, self.bins)
         self.xy_plot_data = self.xy_plot.plot(x=x, y=y11,pen=None,symbol="x")
-        self.xy_plot.plot(x, y10_01, symbol='+', symbolPen=pyqtgraph.mkPen('g'))
+        self.xy_plot.plot(x, y10_01, symbol='+', symbolPen=pyqtgraph.mkPen('g'), pen=None)
         errbars11 = pyqtgraph.ErrorBarItem(
                 x=np.array(x), y=np.array(y11), top=np.array(y11_upper_err), bottom=np.array(y11_lower_err))
         errbars10_01 = pyqtgraph.ErrorBarItem(
