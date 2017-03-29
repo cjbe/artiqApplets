@@ -54,7 +54,7 @@ class XYPlot(pyqtgraph.PlotWidget):
             if hasattr(error, "__len__") and not isinstance(error, np.ndarray):
                 error = np.array(error)
             errbars = pyqtgraph.ErrorBarItem(
-                x=np.array(x), y=np.array(y), height=error)
+                x=np.array(x), y=np.array(y), top=error, bottom=error)
             self.addItem(errbars)
         if fit is not None and len(x) == len(fit):
             self.plot(x[xi], fit[xi], pen=pyqtgraph.mkPen('g'))
